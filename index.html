@@ -1,0 +1,15 @@
+---
+layout: default
+title: Home
+---
+
+<div class="posts">
+  {% for post in site.posts %}
+  <article class="post-preview">
+    <time class="post-date">{{ post.date | date: "%B %d, %Y" }}</time>
+    <h2><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h2>
+    <p>{{ post.description }}</p>
+    <a href="{{ post.url | relative_url }}" class="read-more">Read more &rarr;</a>
+  </article>
+  {% endfor %}
+</div>

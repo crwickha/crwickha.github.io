@@ -1,0 +1,14 @@
+title: Craig's and Bacon
+description: Networking, security, and AI
+url: https://craigsandbacon.com
+baseurl: ""
+
+permalink: /blog/:title/
+
+markdown: kramdown
+highlighter: rouge
+
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
