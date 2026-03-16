@@ -238,6 +238,19 @@ body {
   color: var(--text-light);
 }
 
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e0e0e0;
+    --text-light: #a0a0a0;
+    --accent: #60a5fa;
+    --accent-hover: #93bbfd;
+    --bg: #121212;
+    --bg-code: #1e1e1e;
+    --border: #2a2a2a;
+  }
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   body { font-size: 16px; }
