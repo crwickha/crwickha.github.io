@@ -67,8 +67,6 @@ The system is four Docker containers on a single host, connected to the same LAN
 
 All four containers share a bind-mounted volume at `/mnt/netflow-data` (mapped to `/data` in the application containers). This holds the SQLite database, GeoIP databases, and OAuth token store.
 
-<!-- Screenshot: docker compose ps showing all 4 containers -->
-
 ---
 
 ## Prerequisites
@@ -106,16 +104,12 @@ In the [Meraki Dashboard](https://dashboard.meraki.com):
 
 The Meraki MX will begin exporting NetFlow v9 templates and data packets to your collector. Template packets describe the field layout; data packets carry the actual flow records. goflow2 handles both automatically.
 
-<!-- Screenshot: Meraki Dashboard NetFlow configuration page -->
-
 ### Step 3: Create a MaxMind account and get a license key
 
 1. Sign up at [maxmind.com](https://www.maxmind.com/en/geolite2/signup) (free GeoLite2 tier)
 2. Navigate to **Account > Manage License Keys**
 3. Generate a new license key
 4. Note your **Account ID** and **License Key** — you'll need these for the Docker Compose configuration
-
-<!-- Screenshot: MaxMind license key page -->
 
 ### Step 4: Set up Cloudflare Tunnel
 
@@ -127,8 +121,6 @@ The Cloudflare Tunnel gives Claude.ai secure HTTPS access to the MCP server with
 4. Set the service to `http://mcp-netflow:3000` (this is the Docker DNS name)
 5. Assign a public hostname (e.g., `netflow.yourdomain.com`)
 6. Copy the **tunnel token** — it's the long JWT string
-
-<!-- Screenshot: Cloudflare Tunnel configuration -->
 
 ### Step 5: Prepare host storage
 
@@ -204,9 +196,6 @@ Verify all containers are running:
 docker compose ps
 ```
 
-<!-- Screenshot: docker compose ps output -->
-<!-- Screenshot: ingestor logs showing flow ingestion -->
-
 ### Step 8: Register as a Claude.ai MCP connector
 
 1. Go to [Claude.ai](https://claude.ai) > **Settings** > **Connectors**
@@ -216,10 +205,6 @@ docker compose ps
 5. Complete the OAuth authorization flow in the browser popup
 
 Once connected, Claude will have access to all 10 network analysis tools.
-
-<!-- Screenshot: Claude.ai connector configuration -->
-<!-- Screenshot: OAuth authorization flow -->
-<!-- Screenshot: Successful connection -->
 
 ---
 
@@ -303,10 +288,6 @@ Operational check: total flows in the database, data retention range, flows rece
 **Try asking Claude:**
 > "Is the collector running and healthy?"
 
-<!-- Screenshot: Claude answering a network deep dive question -->
-<!-- Screenshot: Claude detecting beaconing patterns -->
-<!-- Screenshot: Claude analyzing baseline deviations -->
-
 ---
 
 ## Real-World Use Cases
@@ -342,8 +323,6 @@ Claude calls `get_geoip_context` to understand the external IP, then `get_sample
 > **You:** "Give me a daily network health summary"
 
 Claude checks `get_collector_health` to confirm the system is operational, runs `check_baseline_deviation` to surface anything abnormal, and summarizes the highlights from `get_network_deep_dive`.
-
-<!-- Screenshot: Full multi-tool investigation conversation -->
 
 ---
 
