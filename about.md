@@ -15,7 +15,7 @@ The goal is simple: share useful things I've learned along the way. If you're a 
 
 ---
 
-## Connect
+# Let's Connect
 
 <div class="connect-links">
   <a href="https://github.com/crwickha/" class="connect-link" target="_blank" rel="noopener">
