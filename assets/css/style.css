@@ -238,6 +238,37 @@ body {
   color: var(--text-light);
 }
 
+/* Connect links */
+.connect-links {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.connect-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.connect-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.connect-link svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
