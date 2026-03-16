@@ -21,29 +21,29 @@ By the end, you'll have a four-container Docker stack running on your LAN, inges
 The system is four Docker containers on a single host, connected to the same LAN as the Meraki MX devices. Cloudflare Tunnel handles external HTTPS — no SSL certificates, no port forwarding.
 
 ```
-┌──────────┐         ┌────────────────────────────────────────────────┐
-│ Meraki   │  UDP    │  Docker Host                                   │
-│ MX       │──2055──▶│  ┌───────────┐    SQLite    ┌──────────────┐   │
-│          │         │  │ ingestor  │───(WAL)────▶ │ mcp-netflow  │   │
-└──────────┘         │  │           │    flows.db  │              │   │
-                     │  │ goflow2 + │              │ MCP Server   │   │
-                     │  │ GeoIP     │              │ OAuth 2.0    │   │
-                     │  └───────────┘              │ JSON-RPC     │   │
-                     │                             └───────┬──────┘   │
-                     │  ┌─────────────┐                    │          │
-                     │  │ geoipupdate │  weekly mmdb       │          │
-                     │  └─────────────┘  updates           │          │
-                     │                              ┌──────┴───────┐  │
-                     │                              │ cloudflared  │  │
-                     │                              └──────┬───────┘  │
-                     └─────────────────────────────────────┼──────────┘
-                                                           │
++----------+         +------------------------------------------------+
+| Meraki   |  UDP    |  Docker Host                                    |
+| MX       |--2055-->|  +-----------+    SQLite    +--------------+    |
+|          |         |  | ingestor  |----(WAL)---->| mcp-netflow  |    |
++----------+         |  |           |    flows.db  |              |    |
+                     |  | goflow2 + |              | MCP Server   |    |
+                     |  | GeoIP     |              | OAuth 2.0    |    |
+                     |  +-----------+              | JSON-RPC     |    |
+                     |                             +-------+------+    |
+                     |  +-------------+                    |           |
+                     |  | geoipupdate |  weekly mmdb       |           |
+                     |  +-------------+  updates           |           |
+                     |                             +-------+-------+   |
+                     |                             | cloudflared   |   |
+                     |                             +-------+-------+   |
+                     +-------------------------------------+-----------+
+                                                           |
                                                     Cloudflare Tunnel
-                                                           │
-                                                    ┌──────┴───────┐
-                                                    │  Claude.ai   │
-                                                    │  Connector   │
-                                                    └──────────────┘
+                                                           |
+                                                    +------+-------+
+                                                    |  Claude.ai   |
+                                                    |  Connector   |
+                                                    +--------------+
 ```
 
 ### Why these technologies?
