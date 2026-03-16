@@ -400,9 +400,9 @@ z = (current_value - baseline_avg) / baseline_stddev
 ```
 
 Severity ratings:
-- **Normal**: `|z| < 2`
-- **Notable**: `2 ≤ |z| < 3`
-- **Anomalous**: `|z| ≥ 3`
+- **Normal**: z < 2
+- **Notable**: 2 ≤ z < 3
+- **Anomalous**: z ≥ 3
 
 The system also flags items that appear in the current window but not in the baseline (new hosts, new ports, new countries) and items that have disappeared.
 
