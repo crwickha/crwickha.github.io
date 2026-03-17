@@ -180,13 +180,84 @@ CMD ["python", "meraki_mcp_server.py"]
 
 **The server** (`meraki_mcp_server.py`) does three things:
 
-1. **Defines tools** — each tool maps to one or more Meraki API calls. Examples: `list_organizations`, `list_networks`, `list_devices`, `get_device_detail`, `configure_switch_port`, `get_firewall_rules`, `run_ping_test`, and about 25 more. Each tool has a name, description, and input schema that the LLM can read.
+1. **Defines tools** — each tool maps to one or more Meraki API calls. Each tool has a name, description, and input schema that the LLM can read.
 
 2. **Handles JSON-RPC** — the server listens on port 3000 and responds to standard MCP methods: `initialize`, `tools/list` (returns available tools), and `tools/call` (executes a tool and returns the result).
 
 3. **Calls the Meraki API** — when the LLM decides to call a tool, the server translates the request into the corresponding Meraki Python SDK call and returns the JSON result.
 
-The key design choice: no ports are exposed outside the Docker network. The MCP server is internal-only. n8n connects to it at `http://meraki-mcp:3000/mcp`, and that traffic never leaves the Docker bridge network. The LLM gets access to Meraki data, but the Meraki API key is never exposed to the internet.
+### Included tools
+
+This is a purpose-built MCP server with a limited set of tools — it does not cover the full Meraki API. Here is what is included:
+
+**Read operations:**
+
+| Tool | Description |
+|---|---|
+| `list_organizations` | List all Meraki organizations |
+| `get_organization_summary` | Org overview: device counts, licenses, networks, admins |
+| `list_networks` | List all networks in an organization |
+| `list_devices` | List all devices in a network |
+| `get_device_detail` | Device info including status, clients, and LLDP/CDP neighbors |
+| `list_ssids` | List all SSIDs in a network |
+| `list_switch_ports` | List all ports on a switch |
+| `get_firewall_rules` | Get L3 or L7 firewall rules |
+| `get_network_clients` | List clients connected to a network |
+| `get_client_detail` | Detailed info for a specific client |
+| `get_traffic_analysis` | Network traffic analysis and application usage |
+| `get_network_events` | Network event logs |
+
+**Write operations:**
+
+| Tool | Description |
+|---|---|
+| `create_network` | Create a new network |
+| `update_network` | Update network configuration |
+| `delete_network` | Delete a network |
+| `update_device` | Update device name, tags, location, notes |
+| `reboot_device` | Reboot a device |
+| `blink_device_leds` | Blink LEDs for physical identification |
+| `configure_ssid` | Create or update SSID settings |
+| `update_rf_profiles` | Configure wireless RF profiles |
+| `configure_switch_port` | Configure switch port settings (VLAN, PoE, STP, etc.) |
+| `configure_vlans` | Configure VLANs on an appliance |
+| `update_firewall_rules` | Update L3 or L7 firewall rules |
+| `configure_content_filtering` | Configure URL filtering and blocked categories |
+| `configure_intrusion_detection` | Configure IDS/IPS mode and rulesets |
+| `update_client_policy` | Update client device policy (allow, block, group) |
+| `configure_traffic_shaping` | Configure traffic shaping rules |
+| `configure_alerts` | Configure network alert settings |
+| `configure_site_to_site_vpn` | Configure site-to-site VPN |
+| `configure_client_vpn` | Configure client VPN settings |
+
+**Diagnostic tools:**
+
+| Tool | Description |
+|---|---|
+| `run_ping_test` | Run a ping from a device |
+| `run_cable_test` | Run cable diagnostics on a switch port |
+| `get_packet_capture` | Capture packets on a device |
+
+**Bulk operations:**
+
+| Tool | Description |
+|---|---|
+| `bulk_update_devices` | Update multiple devices at once |
+| `clone_network_settings` | Clone VLANs, firewall rules, SSIDs, or alerts between networks |
+
+If you need additional Meraki API coverage, you can add more tools by following the same pattern in `meraki_mcp_server.py` — define the tool schema in the `TOOLS` list and add the execution logic in the `execute_tool` function.
+
+### Security considerations
+
+**This MCP server has no authentication or authorization mechanism.** Any client that can reach `http://meraki-mcp:3000/mcp` on the Docker network can call any tool, including write operations like `delete_network`, `reboot_device`, or `update_firewall_rules`. There is no user-level access control, no audit logging beyond basic stdout, and no rate limiting.
+
+This is acceptable in our setup because:
+
+- The MCP server is on an internal Docker network with no exposed ports. Only containers on the same `n8n_network` can reach it.
+- The only client is n8n, which is behind authentication itself.
+- The human-in-the-loop approval in Agents 3 and 4 acts as a gate before any write operations.
+
+If you deploy this in a production or shared environment, consider adding authentication to the MCP server, restricting the tool set to read-only operations, or implementing approval workflows for all write actions. The Meraki API key used by this server has full access to your organization — treat it accordingly.
 
 ## n8n Configuration and Importing Agents
 
