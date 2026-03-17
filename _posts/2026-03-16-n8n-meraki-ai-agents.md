@@ -35,8 +35,8 @@ Here is what the architecture looks like at a high level:
                            |  |    AI Agent(s)    |  |
                            |  |    (LLM + MCP)    |  |
                            |  +--------+----------+  |
-                           |           |              |
-                           |           v              |
+                           |           |             |
+                           |           v             |
                            |  +-------------------+  |
                            |  |   Meraki MCP      |  |
                            |  |   Server          |  |
