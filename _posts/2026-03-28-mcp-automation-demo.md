@@ -407,23 +407,63 @@ A few things to note:
 * **No ports are exposed.** The Cloudflare Tunnel handles external access. The MCP server is reachable through the tunnel but has no ports open on the host.
 * **No n8n in this compose file.** This is just the MCP server and tunnel. You can connect to it from n8n, Claude Desktop, or any MCP-compatible client by pointing to the tunnel URL.
 
-Configure your Cloudflare Tunnel to route your chosen hostname to `http://automation-mcp:3003`. Then bring it up:
+## Setting Up the Cloudflare Tunnel
+
+The MCP server runs inside Docker with no ports exposed to the internet. A [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) provides secure external access without opening firewall rules or managing TLS certificates. Here is how to set one up.
+
+### Create the Tunnel
+
+1. Go to [cloudflare.com](https://cloudflare.com) and log in.
+2. In the left menu, select **Zero Trust**.
+3. Navigate to **Networks** > **Connectors**.
+4. Click **Create Tunnel** and select **Cloudflare Tunnel**.
+5. Give it a name (e.g. `mcp-server`) and click **Save**.
+6. Select **Docker** from the environment dropdown. Cloudflare gives you a run command like this:
+
+```bash
+docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJhIjoiZDdhM2UzZDlmODRkNzc4MDMxYmM4OTY1YTVhODIwOGYiLCJ0IjoiOGMwNTY5MWUtYTkwNi00M2ZlLWE0OGUtNzdkMTU0ZGE2Y2QwIiwicyI6IllUY3lOemxrTXpFdE5UazBPQzAwTXpJMkxUbGxZV0l0Wm1aa05UY3pNV1JrWkdZek9DJA==
+```
+
+7. Copy the token from that command — it is the long string after `--token`. Paste it into your `.env` file as `CLOUDFLARE_TUNNEL_TOKEN`. Using the example above, your `.env` would look like:
+
+```
+MERAKI_API_KEY=your-meraki-api-key-here
+MERAKI_ORG_ID=your-org-id-here
+CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoiZDdhM2UzZDlmODRkNzc4MDMxYmM4OTY1YTVhODIwOGYiLCJ0IjoiOGMwNTY5MWUtYTkwNi00M2ZlLWE0OGUtNzdkMTU0ZGE2Y2QwIiwicyI6IllUY3lOemxrTXpFdE5UazBPQzAwTXpJMkxUbGxZV0l0Wm1aa05UY3pNV1JrWkdZek9DJA==
+```
+
+8. Click **Next** to continue to the published application route setup.
+
+### Add a Published Application Route
+
+After saving the tunnel and grabbing the token, Cloudflare takes you to the route configuration. This tells the tunnel where to send incoming traffic:
+
+1. Select your domain from the dropdown.
+2. Add a subdomain — for example, `automation-mcp`. This gives you `automation-mcp.yourdomain.com`.
+3. Under **Service**, select **HTTP** and enter `automation-mcp:3003`. This is the Docker container name and port — the tunnel container resolves it over the shared Docker network.
+4. Save the route.
+
+### Start the Services
 
 ```bash
 docker compose up -d
 ```
 
-Verify the server is running:
+Verify the server is reachable through the tunnel:
 
 ```bash
-curl https://your-tunnel-hostname/health
+curl https://automation-mcp.yourdomain.com/health
 ```
 
 ## Connecting an MCP Client
 
-The MCP server speaks standard JSON-RPC over HTTP. Any MCP-compatible client can connect to it.
+The MCP server speaks standard JSON-RPC over HTTP. Any MCP-compatible client can connect to it. The endpoint URL is your tunnel hostname with `/mcp` appended — this path is important. If you forget the `/mcp` suffix, the connection will not work.
 
-**From n8n:** Add an MCP Client tool node and set the endpoint to `http://automation-mcp:3003/mcp` (if n8n is on the same Docker network) or `https://your-tunnel-hostname/mcp` (if connecting externally).
+```
+https://automation-mcp.yourdomain.com/mcp
+```
+
+**From n8n:** Add an MCP Client tool node and set the endpoint to `https://automation-mcp.yourdomain.com/mcp`. If n8n is running on the same Docker network, you can also use the internal URL `http://automation-mcp:3003/mcp`.
 
 **From Claude Desktop or Claude Code:** Add the server to your MCP configuration with the tunnel URL as the endpoint.
 
