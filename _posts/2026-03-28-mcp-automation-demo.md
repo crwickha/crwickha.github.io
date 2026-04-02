@@ -2,7 +2,7 @@
 layout: post
 title: "Automating Branch Network Provisioning with MCP and Cisco Meraki"
 date: 2026-03-28
-description: "A template-driven MCP server that provisions complete Meraki branch networks — VLANs, SSIDs, firewall rules, VPN — through natural language, with the flexibility to customize any site without breaking automation."
+description: "A template-driven MCP server that provisions complete Meraki branch networks — VLANs, SSIDs, firewall rules, VPN — through natural language, with template lifecycle management, drift detection, and a built-in dashboard for fleet visibility."
 ---
 
 What if deploying a new branch office meant describing what you want in plain English and letting an AI agent handle the rest — VLANs, SSIDs, firewall rules, VPN tunnels, all of it?
@@ -34,7 +34,7 @@ The architecture has three components:
 
 **A Network Registry** tracks every network the system has provisioned. It records what was deployed, when, and what tier was used. This serves as both a configuration backup and a lookup table. The LLM can query the registry to understand what exists before making changes.
 
-**An MCP Server** wraps the Meraki Dashboard API and exposes five tools that an LLM can call: list templates, create a network, list managed networks, get a network's configuration, and update a network. The LLM decides which tools to call and in what order based on what you ask it to do.
+**An MCP Server** wraps the Meraki Dashboard API and exposes seven tools that an LLM can call: list templates, create a network, list managed networks, get a network's configuration, update a network, modify templates, and sync template changes to live sites. The LLM decides which tools to call and in what order based on what you ask it to do.
 
 Here is what happens when you ask the agent to create a new branch:
 
@@ -137,6 +137,7 @@ Variables are computed automatically from the network name. When you create "114
 | `{site_low}` | 114 | `114 % 256` |
 | `{site_low_voip}` | 115 | `114 % 256 + 1` |
 | `{site_low_iot}` | 116 | `114 % 256 + 2` |
+| `{site_low_mgmt}` | 117 | `114 % 256 + 3` |
 
 The two-octet scheme supports up to 65,279 unique sites. Site 114 gets `10.0.114.0/24`. Site 257 gets `10.1.1.0/24`. Site 1500 gets `10.5.220.0/24`. Each site gets a unique, predictable address space.
 
@@ -239,6 +240,63 @@ The agent returns the full plan: network name, VLANs with subnets, SSIDs with na
 
 This is especially useful when customizing existing sites. Before adding a VLAN or changing a firewall rule, you can preview the change and confirm it matches your intent.
 
+## Updating Templates and Syncing to Live Sites
+
+Templates are not static. As your network design evolves — new VLANs for emerging use cases, updated firewall policies, changes to VPN routing — the templates need to change with it. Two additional tools handle this lifecycle.
+
+### Modifying Templates
+
+The `auto_update_template` tool lets the agent modify a template tier directly. Add a VLAN, remove an SSID, change firewall rules, update VPN configuration — all through conversation.
+
+```
+You: "Add a Management VLAN 99 with subnet 10.{site_high}.{site_low_mgmt}.0/24
+      to the large tier. Set DHCP to 'Do not respond to DHCP requests'."
+```
+
+The agent updates the template YAML and returns a propagation preview: a summary of every existing site built from that template and tier, showing what would change if you synced. This preview is informational — the tool does not touch any live sites. It validates template variable syntax (ensuring IP fields use valid `{site_high}`, `{site_low}` variables) before saving.
+
+You can also create entirely new tiers. Need an "xlarge" tier with five VLANs? The agent creates it in the template file, and it is immediately available for provisioning new sites.
+
+### Syncing Changes to Live Sites
+
+Once a template is updated, the `auto_sync_template` tool propagates those changes to every existing site built from it. This is where drift detection comes in.
+
+The sync tool compares the current template definition against each site's registry entry to determine what needs to change. It adds VLANs and SSIDs that the template defines but the site is missing, and removes ones the template no longer includes. Critically, it **preserves site-specific customizations** — if branch 42 has a custom Cameras VLAN that is not in the template, the sync leaves it alone.
+
+Before modifying any site, the tool checks for the `automated` tag. Sites without this tag are skipped, giving you a safety mechanism for sites under manual management.
+
+```
+You: "Sync the large template to all sites — dry run first"
+
+Agent: "Dry run complete. 12 sites built from branch/large.
+        8 sites are in sync — no changes needed.
+        4 sites are missing VLAN 99 (Mgmt). Sync would add it.
+        No sites have custom VLANs that would be affected.
+        Run again with dry_run: false to apply."
+```
+
+Dry run is the default. You always preview before applying.
+
+### Drift Detection
+
+The `auto_list_networks` tool now enriches each registry entry with sync status. When you list your managed networks, every site shows whether it is `in_sync` with its source template or has `drift_detected`, along with details of what has drifted — missing VLANs, extra SSIDs, and so on.
+
+This gives you fleet-wide visibility into template compliance without making any API calls to Meraki. The agent compares the template definition against the registry, so the check is instant.
+
+## The Dashboard
+
+The MCP server includes a built-in web dashboard at `/dashboard` that provides a read-only view of the provisioning system. No additional services or frontend builds required — it is served directly by the same Python process.
+
+The dashboard has three tabs:
+
+**Managed Networks** shows every provisioned site as a card. Each card displays the network name, Meraki network ID, tier badge, provisioning status, VLANs with subnets, SSIDs, product types, VPN mode, tags, and timestamps (provisioned and last modified). You get a visual inventory of your entire managed fleet.
+
+**Branch Templates** shows each tier as a collapsible section. Expand a tier to see the full configuration: VLAN table (ID, name, subnet, gateway, DHCP), SSID table (slot, name, auth mode, VLAN, IP mode), firewall rules (policy, comment, source, destination, protocol), and VPN configuration (mode, hubs, subnet routing). An addressing scheme summary at the top explains the variable system.
+
+**Raw Files** gives direct access to the underlying YAML files — `network_registry.yaml` and `branch.yaml` — for when you want to see the raw data.
+
+The dashboard also exposes two JSON API endpoints: `/api/registry` returns the full registry, and `/api/templates` returns the template definitions with PSK secrets redacted. These are useful for integrating with external monitoring or reporting tools.
+
 ## Integration Points: ServiceNow, IPAM, and Beyond
 
 The MCP server handles the Meraki provisioning, but it does not exist in isolation. In a production environment, network provisioning is part of a larger workflow.
@@ -255,7 +313,7 @@ The point is that MCP tools are composable. The automation MCP server handles Me
 
 ## The MCP Server
 
-The server is a Python application that implements the Model Context Protocol (MCP) specification. It runs as a Docker container and exposes five tools over JSON-RPC.
+The server is a Python application that implements the Model Context Protocol (MCP) specification. It runs as a Docker container and exposes seven tools over JSON-RPC.
 
 ### Tools
 
@@ -263,9 +321,11 @@ The server is a Python application that implements the Model Context Protocol (M
 |------|-------------|
 | `auto_list_templates` | List all available templates with tier descriptions, VLAN counts, and SSID counts |
 | `auto_create_branch_network` | Provision a complete branch network from a template (supports dry run) |
-| `auto_list_networks` | List all networks in the master registry |
+| `auto_list_networks` | List all networks in the master registry with sync status |
 | `auto_get_network_config` | Retrieve full configuration of a managed network (registry + live Meraki state) |
 | `auto_update_branch_network` | Modify or delete a managed network — add/remove VLANs, SSIDs, firewall rules, tags (supports dry run) |
+| `auto_update_template` | Modify a template tier or create a new one — add/remove VLANs, SSIDs, firewall rules, VPN config |
+| `auto_sync_template` | Propagate template changes to live sites, preserving customizations (dry run by default) |
 
 ### How It Works
 
@@ -277,7 +337,7 @@ The server loads YAML templates at startup and initializes the Meraki Python SDK
 4. Results are returned as structured JSON — provisioning logs, configuration snapshots, or error details.
 5. The network registry is updated to reflect the current state.
 
-The server also exposes a `/health` endpoint for monitoring:
+The server also exposes a `/health` endpoint for monitoring, a `/dashboard` endpoint for the web UI, and `/api/registry` and `/api/templates` endpoints for programmatic access:
 
 ```json
 {
@@ -322,7 +382,7 @@ services:
       - MERAKI_API_KEY=${MERAKI_API_KEY}
       - MERAKI_ORG_ID=${MERAKI_ORG_ID:-}
     volumes:
-      - ./templates:/app/templates:ro
+      - ./templates:/app/templates
       - ./network_registry.yaml:/app/data/network_registry.yaml
     networks:
       - mcp_network
@@ -342,7 +402,7 @@ networks:
 
 A few things to note:
 
-* **Templates are mounted read-only.** The container reads templates from `./templates/` but cannot modify them. To change a template, edit the YAML file on the host and restart the container.
+* **Templates are mounted read-write.** The `auto_update_template` tool writes changes back to the YAML files, so the container needs write access. If you prefer to manage templates externally, you can mount them read-only (`:ro`) and edit on the host instead.
 * **The network registry is mounted read-write.** This file is the persistent state of all managed networks. Back it up.
 * **No ports are exposed.** The Cloudflare Tunnel handles external access. The MCP server is reachable through the tunnel but has no ports open on the host.
 * **No n8n in this compose file.** This is just the MCP server and tunnel. You can connect to it from n8n, Claude Desktop, or any MCP-compatible client by pointing to the tunnel URL.
@@ -367,7 +427,7 @@ The MCP server speaks standard JSON-RPC over HTTP. Any MCP-compatible client can
 
 **From Claude Desktop or Claude Code:** Add the server to your MCP configuration with the tunnel URL as the endpoint.
 
-Once connected, the client automatically discovers the five available tools. The LLM can see the tool descriptions and input schemas, and it decides when and how to use them based on your instructions.
+Once connected, the client automatically discovers the seven available tools. The LLM can see the tool descriptions and input schemas, and it decides when and how to use them based on your instructions.
 
 ## Customizing for Your Environment
 
@@ -383,13 +443,15 @@ This example is built around a specific branch network design — three tiers, a
 
 **Product types.** The example deploys appliance, switch, and wireless. If some branches only have an appliance, create a template with just that product type.
 
-**Additional tools.** The server has five tools. If you need more — say, a tool that configures switch port profiles, or one that sets up RADIUS servers — you can add them by following the same pattern in `server.py`. Define the tool schema and add the execution logic.
+**Additional tools.** The server has seven tools. If you need more — say, a tool that configures switch port profiles, or one that sets up RADIUS servers — you can add them by following the same pattern in `server.py`. Define the tool schema and add the execution logic.
 
 ## Wrapping Up
 
 Traditional network automation makes you choose between standardization and flexibility. Templates give you consistent deployments. Scripts give you repeatable execution. But the moment a single site needs something different, the rigidity becomes a problem.
 
-The MCP approach gives you both. Templates handle the 90% case — standard branch deployments that follow your design. The LLM handles the 10% — site-specific customizations, one-off changes, bulk modifications across a subset of sites. The network registry keeps track of what each site actually has, not just what it was supposed to have.
+The MCP approach gives you both. Templates handle the 90% case — standard branch deployments that follow your design. The LLM handles the 10% — site-specific customizations, one-off changes, bulk modifications across a subset of sites. The network registry keeps track of what each site actually has, not just what it was supposed to have. And when your standards evolve, template updates propagate to live sites with drift detection and customization preservation — no manual site-by-site work.
+
+The dashboard gives you visibility into the whole system without needing to interact with the LLM. Check fleet status, review template definitions, spot drift — all from a browser.
 
 This is an example implementation. The template, the addressing scheme, the tier definitions — all of it is meant to be replaced with your own design. The value is in the pattern: define your standards as templates, expose your network API as MCP tools, and let an LLM bridge the gap between what you want and the API calls required to get there.
 
