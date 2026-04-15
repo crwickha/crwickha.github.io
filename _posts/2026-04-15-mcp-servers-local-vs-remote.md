@@ -5,7 +5,7 @@ date: 2026-04-15
 description: "A practical guide to local and remote MCP servers in Claude Desktop -- what they are, how they differ, and how to build and connect your first local MCP server from scratch."
 ---
 
-Claude Desktop can connect to MCP servers in two fundamentally different ways: remotely through Anthropic's cloud infrastructure, or locally as a process running on your machine. The distinction matters more than you might think -- it affects what the server can access, where it works, and how you set it up.
+Claude Desktop can connect to MCP servers in two fundamentally different ways: remotely via a URL that Anthropic's infrastructure connects to on your behalf, or locally as a process running on your machine. The distinction matters more than you might think -- it affects what the server can access, where it works, and how you set it up.
 
 This post breaks down both approaches, walks through setting up each type, and ends with building a local MCP server from scratch -- first a minimal hello-world example, then a practical one that talks to the Meraki Dashboard API.
 
@@ -19,14 +19,14 @@ Think of it like a USB port for AI. Plug in an MCP server, and Claude gains new 
 
 ### Connectors (Remote MCP Servers)
 
-Connectors connect Claude to remote MCP servers through Anthropic's cloud infrastructure. This is true even when you are using Claude Desktop -- the connection originates from Anthropic's servers, not from your machine.
+Connectors connect Claude to remote MCP servers via a URL. The connection is brokered through Anthropic's infrastructure -- even in Claude Desktop, it is Anthropic's servers reaching out to the remote MCP server, not your local machine. But the MCP server itself can run anywhere: a cloud provider, a container on a server in your data center, a Raspberry Pi in your closet -- as long as it is reachable via URL. You could run one locally and expose it with a Cloudflare Tunnel, and it would work as a connector.
 
 Key traits:
 
 - **Works everywhere.** Connectors sync across all your Claude apps. Install one on Claude Desktop and it is automatically available on claude.ai and other clients too.
 - **Authentication via OAuth.** When you add a connector, you go through a standard OAuth flow to sign in and grant permissions.
-- **Two flavors.** Built-in connectors come from Anthropic's catalog (Gmail, Google Calendar, Google Drive). Custom connectors let you supply your own remote MCP server URL.
-- **No local access.** Because the connection runs through Anthropic's cloud, connectors cannot reach resources on your local network or filesystem.
+- **Two flavors.** Built-in connectors come from Anthropic's catalog (Gmail, Google Calendar, Google Drive). Custom connectors let you supply your own remote MCP server URL pointing to a server you host yourself.
+- **No direct local access.** Because the connection is established through Anthropic's infrastructure, the server cannot reach your local filesystem or network directly. If you need a connector to access local resources, you would need to expose those resources to the network where the server runs.
 
 ### Local MCP Servers
 
@@ -49,7 +49,7 @@ All desktop extensions are local MCP servers, but not all local MCP servers are 
 
 | | Connectors (Remote) | Local MCP Servers |
 |---|---|---|
-| Where it runs | Anthropic's cloud | Your machine |
+| Where it runs | Anywhere reachable via URL (connection brokered by Anthropic) | Your machine |
 | Available on claude.ai | Yes | No |
 | Available in Claude Desktop | Yes | Yes |
 | Synced across devices | Yes | No |
@@ -57,7 +57,7 @@ All desktop extensions are local MCP servers, but not all local MCP servers are 
 | Local file/resource access | No | Yes |
 | Advanced Research support | Yes | No |
 
-The short version: connectors are cloud-based and work everywhere. Local MCP servers run on your machine and are more powerful for local resource access but only work in Claude Desktop.
+The short version: connectors are remote servers reachable via URL, with the connection brokered through Anthropic's infrastructure, and they work everywhere. Local MCP servers run on your machine and are more powerful for local resource access but only work in Claude Desktop.
 
 ## Adding a Remote Connector
 
@@ -69,7 +69,7 @@ Adding a remote connector is straightforward and happens entirely in the UI.
 4. Complete the OAuth sign-in flow when prompted.
 5. The connector appears in your tool list and syncs to all your Claude apps automatically.
 
-That is it. No config files, no code, no process management. The trade-off is that you are limited to what the remote server exposes, and it cannot touch anything on your local machine or network.
+That is it. No config files, no code, no process management. The trade-off is that the connection goes through Anthropic's infrastructure, so the remote server cannot directly access your local machine or network.
 
 ## Setting Up a Local MCP Server
 
